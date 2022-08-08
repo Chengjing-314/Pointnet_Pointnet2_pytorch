@@ -1,7 +1,7 @@
+from concurrent.futures import process
 import os
 import numpy as np
 import warnings
-import pickle
 import h5py
 
 from tqdm import tqdm
@@ -43,13 +43,14 @@ def farthest_point_sample(point, npoint):
 
 
 class CollisionDataLoader(Dataset):
-    def __init__(self, root, world_num, camera_num,  filter = False, filter_distance = 1.45):
+    def __init__(self, root, world_num, camera_num,  filter = False, filter_distance = 1.45, process_data = False):
         self.root = root
         self.world_num = world_num
         self.camera_num = camera_num
         self.filter = filter
         self.filter_distance = filter_distance
         self.cam_path = os.path.join(self.root, 'cam_'+ str(self.camera_num))
+        self.process_data = process_data
 
         # self.collision_label = os.path.join(self.cam_path, 'pointcloud_collision_label.h5')
         # self.pc = os.path.join(self.cam_path, 'pointcloud.h5')
@@ -60,6 +61,9 @@ class CollisionDataLoader(Dataset):
 
         if self.filter:
             pc = pc[pc[:, 2] < self.filter_distance]
+        
+        if self.process_data:
+            pc = pc_normalize(pc)
         
         return pc
     
