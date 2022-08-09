@@ -43,14 +43,14 @@ def farthest_point_sample(point, npoint):
 
 
 class CollisionDataLoader(Dataset):
-    def __init__(self, root, world_num, camera_num,  filter = False, filter_distance = 1.45, process_data = False):
+    def __init__(self, root, arg):
         self.root = root
-        self.world_num = world_num
-        self.camera_num = camera_num
-        self.filter = filter
-        self.filter_distance = filter_distance
+        self.world_num = arg.world_num
+        self.camera_num = arg.cam_num
+        self.filter = arg.filter
+        self.filter_distance = arg.filter_distance
         self.cam_path = os.path.join(self.root, 'cam_'+ str(self.camera_num))
-        self.process_data = process_data
+        self.process_data = arg.process_data
 
         # self.collision_label = os.path.join(self.cam_path, 'pointcloud_collision_label.h5')
         # self.pc = os.path.join(self.cam_path, 'pointcloud.h5')

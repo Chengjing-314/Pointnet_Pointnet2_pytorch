@@ -67,33 +67,24 @@ class CollisionDecoder(nn.Module):
 
 
 
-class PointNet2CollisionDetection(nn.Module):
+class get_model(nn.Module):
     def __init__(self, robot_arm_fk_len = 15):
-        super(PointNet2CollisionDetection, self).__init__()
+        super(get_model, self).__init__()
         self.encoder = PointNetEncoder()
         self.decoder = CollisionDecoder(robot_arm_fk_len)
         self.enviroment_feature = None
+        self.panda_feature = PandaConfig()
 
 
     def forward(self, xyz, robot_configs):
-        if not self.enviroment_feature:
-            self.enviroment_feature = self.encoder(xyz)
-
+        robot_configs = self.panda_feature(robot_configs)
+        x = self.encoder(xyz)
         x = self.enviroment_feature.repeat(robot_configs.size(dim = 0))
         x = torch.cat((x, robot_configs), dim = 1)
         x = self.decoder(x)
 
         return x
 
-
-class get_loss(nn.Module):
-    def __init__(self):
-        super(get_loss, self).__init__()
-
-    def forward(self, pred, target):
-        total_loss = F.nll_loss(pred, target)
-
-        return total_loss
 
 
 class PandaConfig():

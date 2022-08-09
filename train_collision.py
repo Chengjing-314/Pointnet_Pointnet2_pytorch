@@ -5,6 +5,7 @@ import numpy as np
 
 import datetime
 import logging
+from data_utils.CollisionDataLoader import CollisionDataLoader
 import provider
 import importlib
 import shutil
@@ -23,9 +24,8 @@ def parse_args():
     parser = argparse.ArgumentParser('training')
     parser.add_argument('--use_cpu', action='store_true', default=False, help='use cpu mode')
     parser.add_argument('--gpu', type=str, default='0', help='specify gpu device')
-    parser.add_argument('--batch_size', type=int, default=24, help='batch size in training')
-    parser.add_argument('--model', default='pointnet_cls', help='model name [default: pointnet_cls]')
-    parser.add_argument('--num_category', default=40, type=int, choices=[10, 40],  help='training on ModelNet10/40')
+    parser.add_argument('--batch_size', type=int, default=2, help='batch size in training')
+    parser.add_argument('--model', default='pointnet2_collision', help='model name [default: pointnet_cls]')
     parser.add_argument('--epoch', default=200, type=int, help='number of epoch in training')
     parser.add_argument('--learning_rate', default=0.001, type=float, help='learning rate in training')
     parser.add_argument('--num_point', type=int, default=1024, help='Point Number')
@@ -35,6 +35,11 @@ def parse_args():
     parser.add_argument('--use_normals', action='store_true', default=False, help='use normals')
     parser.add_argument('--process_data', action='store_true', default=False, help='save data offline')
     parser.add_argument('--use_uniform_sample', action='store_true', default=False, help='use uniform sampiling')
+    parser.add_argument('--world_num', default=80, help='number of worlds')
+    parser.add_argument('--cam_num', default=10, help='number of cameras per world')
+    parser.add_argument('--filter', default=False, help='wether to filter out the points')
+    parser.add_argument('--filter_distance', default=1.4, help='distance threshold for filtering')
+    parser.add_argument('--fk_len', default=14, help='robot arm fk length')
     return parser.parse_args()
 
 
@@ -112,21 +117,19 @@ def main(args):
     log_string('Load dataset ...')
     data_path = "" # TODO
 
-    train_dataset = ModelNetDataLoader(root=data_path, args=args, split='train', process_data=args.process_data)
-    test_dataset = ModelNetDataLoader(root=data_path, args=args, split='test', process_data=args.process_data)
+    train_dataset = CollisionDataLoader(root=data_path, args=args)
+    test_dataset = CollisionDataLoader(root=data_path, args=args)
     trainDataLoader = torch.utils.data.DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True, num_workers=10, drop_last=True)
     testDataLoader = torch.utils.data.DataLoader(test_dataset, batch_size=args.batch_size, shuffle=False, num_workers=10)
 
     '''MODEL LOADING'''
-    num_class = args.num_category
-    model = importlib.import_module(args.model)
-    shutil.copy('./models/%s.py' % args.model, str(exp_dir))
+    MODEL = importlib.import_module(args.model)
+    shutil.copy('models/%s.py' % args.model, str(exp_dir))
     shutil.copy('models/pointnet2_utils.py', str(exp_dir))
-    shutil.copy('./train_classification.py', str(exp_dir))
 
-    classifier = model.get_model(num_class, normal_channel=args.use_normals)
-    criterion = model.get_loss()
-    classifier.apply(inplace_relu)
+    classifier = MODEL.get_model().cuda()
+    criterion = MODEL.get_loss().cuda()
+
 
     if not args.use_cpu:
         classifier = classifier.cuda()
@@ -166,7 +169,7 @@ def main(args):
         classifier = classifier.train()
 
         scheduler.step()
-        for batch_id, (points, target) in tqdm(enumerate(trainDataLoader, 0), total=len(trainDataLoader), smoothing=0.9):
+        for config, target, points in tqdm(enumerate(trainDataLoader, 0), total=len(trainDataLoader), smoothing=0.9):
             optimizer.zero_grad()
 
             points = points.data.numpy()
@@ -179,8 +182,8 @@ def main(args):
             if not args.use_cpu:
                 points, target = points.cuda(), target.cuda()
 
-            pred, trans_feat = classifier(points)
-            loss = criterion(pred, target.long(), trans_feat)
+            pred = classifier(points, config)
+            loss = criterion(pred, target)
             pred_choice = pred.data.max(1)[1]
 
             correct = pred_choice.eq(target.long().data).cpu().sum()
