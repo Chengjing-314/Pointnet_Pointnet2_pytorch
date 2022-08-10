@@ -82,26 +82,18 @@ class CollisionDataLoader(Dataset):
         if self.split == 'train':
             world_idx = int(idx // self.camera_num)
             cam_idx = int(idx % self.camera_num)
-            world_path = os.path.join(self.root, 'world_' + str(world_idx))
-            cam_path = os.path.join(world_path, 'cam_' + str(cam_idx))
-            config, label = self.load_config_label(os.path.join(world_path))
-            pc = self.load_pc(os.path.join(cam_path,'pc.h5'))
         elif self.split == 'validation':
             world_idx = idx - 1
             cam_idx = 8
-            world_path = os.path.join(self.root, 'world_' + str(world_idx))
-            cam_path = os.path.join(world_path, 'cam_' + str(cam_idx))
-            config, label = self.load_config_label(world_path)
-            pc = self.load_pc(os.path.join(cam_path,'pc.h5'))
         elif self.split == 'test':
             world_idx = idx - 1
             cam_idx = 9
-            world_path = os.path.join(self.root, 'world_' + str(world_idx))
-            cam_path = os.path.join(world_path, 'cam_' + str(cam_idx))
-            config, label = self.load_config_label(world_path)
-            pc = self.load_pc(os.path.join(cam_path,'pc.h5'))
- 
-        
+            
+        world_path = os.path.join(self.root, 'world_' + str(world_idx))
+        cam_path = os.path.join(world_path, 'cam_' + str(cam_idx))
+        config, label = self.load_config_label(world_path)
+        pc = self.load_pc(os.path.join(cam_path,'pc.h5'))
+
         start, end = self.pc_tracker[idx].step()
         
         return config[start:end], label[start:end], pc
