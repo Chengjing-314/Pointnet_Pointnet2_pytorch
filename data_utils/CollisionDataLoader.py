@@ -45,11 +45,17 @@ def farthest_point_sample(point, npoint):
 class CollisionDataLoader(Dataset):
     def __init__(self, root, arg, num_config, config_batch_size, split = 'train'):
         self.root = root
-        self.world_num = arg.world_num
-        self.camera_num = arg.cam_num
-        self.filter = arg.filter
-        self.filter_distance = arg.filter_distance
-        self.process_data = arg.process_data
+        # self.world_num = arg.world_num
+        # self.camera_num = arg.cam_num
+        # self.filter = arg.filter
+        # self.filter_distance = arg.filter_distance
+        # self.process_data = arg.process_data
+        self.world_num = 70
+        self.camera_num = 8
+        self.filter = True
+        self.filter_distance = 1.45
+        self.process_data = False
+        
         self.split = split
         self.pc_tracker = [ConfigTracker(num_config, config_batch_size, split) for _ in range(self.world_num * self.camera_num)]
 
@@ -100,19 +106,19 @@ class CollisionDataLoader(Dataset):
     
     
 class ConfigTracker():
-    def __init__(self, num_config, batch_size, split):
+    def __init__(self, num_config, batch_size, split, validation_reset = 5000, test_reset = 7500):
         self.batch_size = batch_size
-        if self.split == 'train':
+        if split == 'train':
             self.config_ptr = 0
             self.reset = 0
             self.num_config = num_config
-        elif self.split == 'validation':
-            self.config_ptr = 5000
-            self.reset = 5000
+        elif split == 'validation':
+            self.config_ptr = validation_reset
+            self.reset = validation_reset
             self.num_config = self.reset + num_config
-        elif self.split == 'test':
-            self.config_ptr = 7500
-            self.reset = 7500
+        elif split == 'test':
+            self.config_ptr = test_reset
+            self.reset = test_reset
             self.num_config = self.reset + num_config
         
     def step(self):
@@ -130,9 +136,14 @@ class ConfigTracker():
 
 if __name__ == '__main__':
     import torch
-
-    data = CollisionDataLoader()
-    DataLoader = torch.utils.data.DataLoader(data, batch_size=12, shuffle=True, num_workers=8)
-    for point, label in DataLoader:
-        print(point.shape)
-        print(label.shape)
+    import time
+    root = '/home/chengjing/Desktop/data_generation_2'    
+    
+    data = CollisionDataLoader(root, None, 10000, 128, 'train')
+    DataLoader = torch.utils.data.DataLoader(data, batch_size=1, shuffle=True, num_workers=10)
+    i = 0
+    start = time.time()
+    for config, label, pc in DataLoader:
+        print(config.shape, label.shape, pc.shape)
+    end = time.time()
+    print("script running time: ", end - start)
