@@ -43,14 +43,15 @@ def farthest_point_sample(point, npoint):
 
 
 class CollisionDataLoader(Dataset):
-    def __init__(self, root, arg):
+    def __init__(self, root, arg, num_config, config_batch_size, split = 'train'):
         self.root = root
         self.world_num = arg.world_num
         self.camera_num = arg.cam_num
         self.filter = arg.filter
         self.filter_distance = arg.filter_distance
-        self.cam_path = os.path.join(self.root, 'cam_'+ str(self.camera_num))
         self.process_data = arg.process_data
+        self.split = split
+        self.pc_tracker = [ConfigTracker(num_config, config_batch_size, split) for _ in range(self.world_num * self.camera_num)]
 
         # self.collision_label = os.path.join(self.cam_path, 'pointcloud_collision_label.h5')
         # self.pc = os.path.join(self.cam_path, 'pointcloud.h5')
@@ -77,11 +78,63 @@ class CollisionDataLoader(Dataset):
         return self.world_num * self.camera_num
     
     def __getitem__(self, idx):
-        world_idx = idx // self.camera_num
-        cam_idx = idx % self.camera_num
-        config, label = self.load_config_label(os.path.join(self.cam_path, "world_"+ str(world_idx)))
-        pc = self.load_pc(os.path.join(self.cam_path, str(world_idx), str(cam_idx), 'pc.h5'))
-        return config, label, pc
+        
+        if self.split == 'train':
+            world_idx = int(idx // self.camera_num)
+            cam_idx = int(idx % self.camera_num)
+            world_path = os.path.join(self.root, 'world_' + str(world_idx))
+            cam_path = os.path.join(world_path, 'cam_' + str(cam_idx))
+            config, label = self.load_config_label(os.path.join(world_path))
+            pc = self.load_pc(os.path.join(cam_path,'pc.h5'))
+        elif self.split == 'validation':
+            world_idx = idx - 1
+            cam_idx = 8
+            world_path = os.path.join(self.root, 'world_' + str(world_idx))
+            cam_path = os.path.join(world_path, 'cam_' + str(cam_idx))
+            config, label = self.load_config_label(world_path)
+            pc = self.load_pc(os.path.join(cam_path,'pc.h5'))
+        elif self.split == 'test':
+            world_idx = idx - 1
+            cam_idx = 9
+            world_path = os.path.join(self.root, 'world_' + str(world_idx))
+            cam_path = os.path.join(world_path, 'cam_' + str(cam_idx))
+            config, label = self.load_config_label(world_path)
+            pc = self.load_pc(os.path.join(cam_path,'pc.h5'))
+ 
+        
+        start, end = self.pc_tracker[idx].step()
+        
+        return config[start:end], label[start:end], pc
+    
+    
+class ConfigTracker():
+    def __init__(self, num_config, batch_size, split):
+        self.batch_size = batch_size
+        if self.split == 'train':
+            self.config_ptr = 0
+            self.reset = 0
+            self.num_config = num_config
+        elif self.split == 'validation':
+            self.config_ptr = 5000
+            self.reset = 5000
+            self.num_config = self.reset + num_config
+        elif self.split == 'test':
+            self.config_ptr = 7500
+            self.reset = 7500
+            self.num_config = self.reset + num_config
+        
+    def step(self):
+        if self.config_ptr + self.batch_size < self.num_config:
+            start = self.config_ptr
+            self.config_ptr += self.batch_size
+            end = self.config_ptr
+            return start, end
+        else:
+            start = self.config_ptr
+            end = self.num_config
+            self.config_ptr = self.reset
+            return start, end
+        
 
 if __name__ == '__main__':
     import torch
